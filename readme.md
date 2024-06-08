@@ -1,4 +1,4 @@
-#Wyjaśnienie kodu
+# Wyjaśnienie kodu
 
 * Ustawienia WiFi: Podaj nazwę swojej sieci WiFi i hasło.
 * Ustawienia serwera: Podaj adres serwera i port (zwykle 80 dla HTTP).
@@ -9,13 +9,13 @@
 * Funkcja parseGPGGA: Wyciąga współrzędne geograficzne z linijki $GPGGA.
 * Funkcja sendToServer: Łączy się z serwerem i wysyła dane GPS w zapytaniu GET.
 
-#Wymagania sprzętowe
+# Wymagania sprzętowe
 
 * Moduł ESP-01S
 * Moduł GPS NEO-7M
 * Konwerter USB-UART (do programowania ESP-01S)
 
-#Kabelki połączeniowe
+# Kabelki połączeniowe
 Podłącz moduł GPS do ESP-01S według poniższych zaleceń:
 
 * GPS VCC -> ESP-01S 3.3V
