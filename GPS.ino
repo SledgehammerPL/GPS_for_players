@@ -1,9 +1,11 @@
 #include <ESP8266WiFi.h>
 #include <FS.h>
 #include <SoftwareSerial.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
 
 // Ustawienia GPS
-SoftwareSerial gpsSerial(D1, D2);  // RX, TX
+SoftwareSerial gpsSerial(2, 0);  // RX, TX (GPIO2, GPIO0)
 
 String ssid = "";
 String password = "";
@@ -35,7 +37,8 @@ void setup() {
     Serial.print(".");
   }
   
-  Serial.println("\nPołączono z WiFi");
+  Serial.println("\nPołączono z WiFi: " + ssid);
+  printWiFiInfo();
 }
 
 void loop() {
@@ -50,7 +53,7 @@ void loop() {
 }
 
 bool readConfig() {
-  File file = SPIFFS.open("/setup.txt", "r");
+  File file = SPIFFS.open("/setup.txt", "r");  // Zmiana na setup.txt
   if (!file) {
     Serial.println("Błąd otwarcia pliku");
     return false;
@@ -70,7 +73,7 @@ bool readConfig() {
     } else if (key == "password") {
       password = value;
     } else if (key == "server_url") {
-      serverUrl = value;
+      serverUrl = value; // Ustawia serverUrl z pliku setup.txt
     } else if (key == "player_id") {
       playerId = value;
     }
@@ -130,13 +133,19 @@ String generateFakeGPSData() {
 }
 
 void sendToServer(String gpsData, bool isFakeData) {
-  WiFiClient client;
-  if (client.connect(serverUrl.c_str(), 80)) {
-    Serial.println("Połączono z serwerem");
+  WiFiClientSecure client;
+  client.setInsecure(); // Ignorowanie certyfikatów SSL/TLS
+  
+  Serial.println("Próba połączenia z serwerem: " + serverUrl);
+  
+  if (client.connect(serverUrl.c_str(), 443)) {
+    Serial.println("Połączono z serwerem HTTPS");
     String url = serverUrl + "?" + gpsData + "&player_id=" + playerId;
     if (isFakeData) {
       url += "&fakedata";
     }
+    
+    Serial.println("Wysyłanie żądania GET: " + url);
     
     client.print(String("GET ") + url + " HTTP/1.1\r\n" +
                  "Host: " + serverUrl + "\r\n" +
@@ -152,5 +161,36 @@ void sendToServer(String gpsData, bool isFakeData) {
     Serial.println("Dane wysłane");
   } else {
     Serial.println("Połączenie nieudane");
+    Serial.println("Status WiFi: " + String(WiFi.status()));
   }
+}
+
+void printWiFiInfo() {
+  Serial.print("Adres MAC: ");
+  Serial.println(WiFi.macAddress());
+  Serial.print("Adres IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Brama (gateway): ");
+  Serial.println(WiFi.gatewayIP());
+  Serial.print("DNS: ");
+  Serial.println(WiFi.dnsIP());
+
+  // Testowanie komunikacji ze światem zewnętrznym
+  Serial.println("Próba nawiązania połączenia z serwerem HTTPS");
+
+  WiFiClientSecure client; // Tworzymy obiekt WiFiClientSecure dla HTTPS
+  client.setInsecure(); // Dodajemy obsługę wszystkich protokołów SSL/TLS
+  HTTPClient http;
+  
+  // Konfigurujemy klienta HTTP jako bezpiecznego klienta
+  http.begin(client, "https://devel.b6a.pl/gps.php"); // Adres serwera testowego
+
+  int httpCode = http.GET();
+  if (httpCode > 0) {
+    Serial.printf("[HTTP] Odpowiedź serwera: %d\n", httpCode);
+  } else {
+    Serial.printf("[HTTP] Błąd: %s\n", http.errorToString(httpCode).c_str());
+    Serial.println(http.getString()); // Dodajemy wyświetlenie treści odpowiedzi serwera w przypadku błędu
+  }
+  http.end();
 }

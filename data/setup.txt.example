@@ -1,4 +1,5 @@
 ssid=Twoja_Sieć_WiFi
 password=Twoje_Hasło
-server_url=http://example.com/path/to/endpoint
+server_url=https://example.com/path/to/endpoint
 player_id=Twój_Identyfikator_Gracza
+fingerprint=2A B4 23 47 FD 21 94 B1 DA 45 82 47 24 92 B2 F6 1F B3 42 6B
