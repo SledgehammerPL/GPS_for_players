@@ -50,7 +50,7 @@ void loop() {
 }
 
 bool readConfig() {
-  File file = SPIFFS.open("/wifi.txt", "r");
+  File file = SPIFFS.open("/setup.txt", "r");
   if (!file) {
     Serial.println("Błąd otwarcia pliku");
     return false;
@@ -154,4 +154,3 @@ void sendToServer(String gpsData, bool isFakeData) {
     Serial.println("Połączenie nieudane");
   }
 }
-
