@@ -135,33 +135,25 @@ String generateFakeGPSData() {
 void sendToServer(String gpsData, bool isFakeData) {
   WiFiClientSecure client;
   client.setInsecure(); // Ignorowanie certyfikatów SSL/TLS
+  HTTPClient http;
   
-  Serial.println("Próba połączenia z serwerem: " + serverUrl);
-  
-  if (client.connect(serverUrl.c_str(), 443)) {
-    Serial.println("Połączono z serwerem HTTPS");
-    String url = serverUrl + "?" + gpsData + "&player_id=" + playerId;
+  if (http.begin(client, serverUrl)) {
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    String postData = "player_id=" + String(playerId) + "&" + gpsData;
     if (isFakeData) {
-      url += "&fakedata";
+      postData += "&fakedata";
     }
-    
-    Serial.println("Wysyłanie żądania GET: " + url);
-    
-    client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-                 "Host: " + serverUrl + "\r\n" +
-                 "Connection: close\r\n\r\n");
-                 
-    while (client.connected()) {
-      String line = client.readStringUntil('\n');
-      if (line == "\r") {
-        break;
-      }
+    int httpCode = http.POST(postData);
+    if (httpCode > 0) {
+      Serial.println("HTTP status code: " + String(httpCode));
+      String payload = http.getString();
+      Serial.println("Odpowiedź serwera: " + payload);
+    } else {
+      Serial.println("Błąd połączenia HTTP: " + String(httpCode));
     }
-    client.stop();
-    Serial.println("Dane wysłane");
+    http.end();
   } else {
-    Serial.println("Połączenie nieudane");
-    Serial.println("Status WiFi: " + String(WiFi.status()));
+    Serial.println("Nieudane połączenie z serwerem!");
   }
 }
 
