@@ -2,7 +2,7 @@
 #include <FS.h>
 #include <SoftwareSerial.h>
 #include <ESP8266HTTPClient.h>
-#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
 
 // Ustawienia GPS
 SoftwareSerial gpsSerial(2, 0);  // RX, TX (GPIO2, GPIO0)
@@ -42,13 +42,8 @@ void setup() {
 }
 
 void loop() {
-  bool isFakeData = false;
   String gpsData = getGPSData();
-  if (gpsData.length() == 0) {
-    gpsData = generateFakeGPSData();
-    isFakeData = true;
-  }
-  sendToServer(gpsData, isFakeData);
+  sendToServer(gpsData);
   delay(10000); // Poczekaj 10 sekund przed kolejnym wysłaniem danych
 }
 
@@ -85,6 +80,8 @@ bool readConfig() {
 
 String getGPSData() {
   String nmeaSentence = "";
+  String latitude = "";
+  String longitude = "";
   unsigned long startTime = millis();
   
   while (millis() - startTime < 2000) { // Czekaj 2 sekundy na dane GPS
@@ -93,46 +90,41 @@ String getGPSData() {
       nmeaSentence += c;
       if (c == '\n') {
         if (nmeaSentence.startsWith("$GPGGA")) {
-          return parseGPGGA(nmeaSentence);
+          int commaIndex = 0;
+          int previousIndex = 0;
+          int fieldIndex = 0;
+          
+          while ((commaIndex = nmeaSentence.indexOf(',', previousIndex)) != -1) {
+            String field = nmeaSentence.substring(previousIndex, commaIndex);
+            previousIndex = commaIndex + 1;
+            fieldIndex++;
+            
+            if (fieldIndex == 3) {
+              latitude = field;
+            } else if (fieldIndex == 5) {
+              longitude = field;
+              break;
+            }
+          }
+          return "lat=" + latitude + "&lon=" + longitude + "&gps_data=" + nmeaSentence;
         }
         nmeaSentence = "";
       }
     }
   }
   
-  return "";
-}
-
-String parseGPGGA(String nmeaSentence) {
-  int commaIndex = 0;
-  int previousIndex = 0;
-  int fieldIndex = 0;
-  String latitude = "";
-  String longitude = "";
-  
-  while ((commaIndex = nmeaSentence.indexOf(',', previousIndex)) != -1) {
-    String field = nmeaSentence.substring(previousIndex, commaIndex);
-    previousIndex = commaIndex + 1;
-    fieldIndex++;
-    
-    if (fieldIndex == 3) {
-      latitude = field;
-    } else if (fieldIndex == 5) {
-      longitude = field;
-      break;
-    }
-  }
-  
-  return "lat=" + latitude + "&lon=" + longitude;
+  return generateFakeGPSData(); // Jeśli brak danych GPS, wygeneruj dane fałszywe
 }
 
 String generateFakeGPSData() {
   String latitude = "52.2296756"; // Przykładowa szerokość geograficzna (Warszawa)
   String longitude = "21.0122287"; // Przykładowa długość geograficzna (Warszawa)
-  return "lat=" + latitude + "&lon=" + longitude;
+  return "lat=" + latitude + "&lon=" + longitude + "&gps_data=FAKE_DATA";
 }
 
-void sendToServer(String gpsData, bool isFakeData) {
+void sendToServer(String gpsData) {
+  Serial.println("Łączenie z serwerem: " + serverUrl);
+  
   WiFiClientSecure client;
   client.setInsecure(); // Ignorowanie certyfikatów SSL/TLS
   HTTPClient http;
@@ -140,16 +132,14 @@ void sendToServer(String gpsData, bool isFakeData) {
   if (http.begin(client, serverUrl)) {
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
     String postData = "player_id=" + String(playerId) + "&" + gpsData;
-    if (isFakeData) {
-      postData += "&fakedata";
-    }
+    Serial.println("Wysyłanie danych do serwera: " + postData);
     int httpCode = http.POST(postData);
     if (httpCode > 0) {
       Serial.println("HTTP status code: " + String(httpCode));
       String payload = http.getString();
       Serial.println("Odpowiedź serwera: " + payload);
     } else {
-      Serial.println("Błąd połączenia HTTP: " + String(httpCode));
+      Serial.println("Błąd połączenia HTTP: " + String(http.errorToString(httpCode).c_str()));
     }
     http.end();
   } else {
@@ -175,11 +165,13 @@ void printWiFiInfo() {
   HTTPClient http;
   
   // Konfigurujemy klienta HTTP jako bezpiecznego klienta
-  http.begin(client, "https://devel.b6a.pl/gps.php"); // Adres serwera testowego
+  http.begin(client, serverUrl); // Adres serwera testowego
 
   int httpCode = http.GET();
   if (httpCode > 0) {
     Serial.printf("[HTTP] Odpowiedź serwera: %d\n", httpCode);
+    String payload = http.getString();
+    Serial.println("Odpowiedź serwera: " + payload);
   } else {
     Serial.printf("[HTTP] Błąd: %s\n", http.errorToString(httpCode).c_str());
     Serial.println(http.getString()); // Dodajemy wyświetlenie treści odpowiedzi serwera w przypadku błędu
